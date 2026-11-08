@@ -1,0 +1,4 @@
+node_modules/
+fonts/
+out/
+*.log

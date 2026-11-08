@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16141c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pixoo">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Pixoo 小屏</title>
+<style>
+:root {
+  --bg: #f6f3ee; --panel: #ffffff; --ink: #1f1b24; --muted: #6f6878; --line: #e4ded6;
+  --accent: #e2557a; --accent-ink: #fff; --soft: #f1ebe4; --ok: #2f9e6b; --warn: #c9822b;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #16141c; --panel: #211e29; --ink: #f1edf5; --muted: #a39bab; --line: #34303d; --soft: #2a2633; --accent: #ff6f93; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; }
+body { padding: env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom)); }
+main { max-width: 560px; margin: 0 auto; padding: 0 16px; }
+h2 { font-size: 15px; margin: 22px 0 8px; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.grow { flex: 1 1 auto; min-width: 0; }
+button, .btn { appearance: none; border: 1px solid var(--line); background: var(--soft); color: var(--ink); border-radius: 10px; padding: 10px 14px; font: inherit; font-size: 15px; cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+button.on { outline: 2px solid var(--accent); outline-offset: -2px; }
+button:disabled { opacity: .5; }
+input, textarea, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; }
+textarea { resize: vertical; min-height: 72px; }
+label.small { font-size: 13px; color: var(--muted); }
+
+/* preview */
+.screenwrap { display: flex; gap: 14px; align-items: center; padding-top: 14px; }
+canvas.screen { width: 112px; height: 112px; image-rendering: pixelated; border-radius: 10px; background: #000; border: 3px solid #2b2733; flex: none; }
+.nowlabel { font-weight: 600; }
+.sub { font-size: 13px; color: var(--muted); }
+
+/* chips */
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { padding: 7px 11px; border-radius: 999px; font-size: 14px; }
+.swatch { width: 30px; height: 30px; border-radius: 50%; padding: 0; border: 2px solid var(--line); }
+.swatch.on { outline: 3px solid var(--accent); outline-offset: 1px; }
+
+/* tabs */
+nav { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+nav button { flex: 1; border: 0; background: none; border-radius: 0; padding: 10px 0 9px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+nav button .ic { font-size: 20px; line-height: 1; }
+nav button.active { color: var(--accent); font-weight: 600; }
+section[data-tab] { display: none; }
+section[data-tab].active { display: block; }
+
+/* drawing board */
+.board { width: 100%; aspect-ratio: 1; image-rendering: pixelated; touch-action: none; background: #000; border-radius: 10px; display: block; }
+.tools button { padding: 8px 10px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; max-width: calc(100% - 32px); }
+.toast.show { opacity: .95; }
+.sched { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.sched:last-child { border-bottom: 0; }
+.sched .t { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; width: 58px; }
+.muted { color: var(--muted); }
+.hidden { display: none !important; }
+dialog { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--ink); padding: 18px; width: min(92vw, 400px); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+.dot.ok { background: var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <div class="screenwrap">
+    <canvas class="screen" id="now" width="64" height="64"></canvas>
+    <div class="grow">
+      <div class="nowlabel" id="nowLabel">连接中…</div>
+      <div class="sub" id="nowSub"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="clearBtn" class="hidden">结束插播</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 发送 -->
+  <section data-tab="send" class="active">
+    <h2>发一句话</h2>
+    <div class="panel">
+      <textarea id="txt" placeholder="比如：晚安 ❤️" maxlength="300"></textarea>
+      <div class="row" style="margin:10px 0">
+        <div class="chips" id="txtColors"></div>
+      </div>
+      <div class="row">
+        <select id="txtDur" class="grow" aria-label="显示多久">
+          <option value="30">显示 30 秒</option><option value="60">1 分钟</option><option value="300" selected>5 分钟</option>
+          <option value="1800">30 分钟</option><option value="persist">一直显示（设为常驻）</option>
+        </select>
+        <button class="primary" id="txtSend">发送</button>
+      </div>
+    </div>
+
+    <h2>发照片 / GIF</h2>
+    <div class="panel">
+      <label class="btn" style="display:block;text-align:center">📷 选一张照片或 GIF<input type="file" id="img" accept="image/*" style="display:none"></label>
+      <div class="row hidden" id="imgRow" style="margin-top:12px">
+        <canvas class="screen" id="imgPrev" width="64" height="64"></canvas>
+        <div class="grow">
+          <div class="chips" style="margin-bottom:8px">
+            <button class="chip on" data-fit="cover">铺满</button><button class="chip" data-fit="contain">完整</button>
+          </div>
+          <select id="imgDur" aria-label="显示多久">
+            <option value="60">显示 1 分钟</option><option value="300" selected>5 分钟</option><option value="1800">30 分钟</option>
+            <option value="persist">一直显示（设为常驻）</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="primary grow hidden" id="imgSend">发送图片</button></div>
+    </div>
+  </section>
+
+  <!-- 画板 -->
+  <section data-tab="draw">
+    <h2>像素画板 <span class="muted" style="font-weight:400">· 64×64</span></h2>
+    <div class="panel">
+      <canvas class="board" id="board" width="64" height="64"></canvas>
+      <div class="chips" id="palette" style="margin:12px 0 10px"></div>
+      <div class="row tools">
+        <button id="toolPen" class="on">✏️ 画笔</button>
+        <button id="toolFill">🪣 填充</button>
+        <button id="toolErase">🧽 橡皮</button>
+        <select id="brush" style="width:auto"><option value="1">细</option><option value="2" selected>中</option><option value="4">粗</option></select>
+        <button id="undo">↶</button>
+        <button id="wipe">清空</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <label class="row grow" style="gap:6px"><input type="checkbox" id="live" style="width:auto"> 实时同步到屏幕</label>
+        <button id="drawBase">设为常驻</button>
+        <button class="primary" id="drawSend">发送</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 常驻 -->
+  <section data-tab="base">
+    <h2>平时显示什么</h2>
+    <div class="panel">
+      <div class="sub" style="margin-bottom:10px">现在：<b id="baseNow">…</b></div>
+      <div class="chips">
+        <button class="chip" data-base="clock">🕰 时钟</button>
+        <button class="chip" data-base="weather">⛅ 天气</button>
+        <button class="chip" data-base="countdown">⏳ 倒计时</button>
+        <button class="chip" data-base="lulupet">🐹 噜噜</button>
+        <button class="chip" data-base="blank">⬛ 黑屏</button>
+      </div>
+      <div id="cdForm" class="hidden" style="margin-top:14px">
+        <label class="small">倒计时到哪天</label>
+        <input type="date" id="cdDate">
+        <label class="small" style="display:block;margin-top:8px">叫什么（比如「见面」）</label>
+        <input id="cdLabel" maxlength="12" placeholder="见面">
+        <button class="primary" id="cdSave" style="margin-top:10px;width:100%">设为常驻</button>
+      </div>
+      <div id="wxForm" class="hidden" style="margin-top:14px">
+        <label class="small">城市</label>
+        <div class="row"><input id="wxCity" class="grow" placeholder="比如 Grafton 或 波士顿"><button id="wxFind">查找</button></div>
+        <div id="wxResults" class="chips" style="margin-top:8px"></div>
+        <div class="sub" style="margin-top:6px">现在的城市：<span id="wxNow">—</span></div>
+      </div>
+      <div class="sub" id="luluHint" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+  <!-- 定时 -->
+  <section data-tab="sched">
+    <h2>定时内容</h2>
+    <div class="panel" id="schedList"><div class="muted">还没有</div></div>
+    <h2>新建</h2>
+    <div class="panel">
+      <div class="row">
+        <input type="time" id="sTime" value="08:00" style="width:auto">
+        <div class="chips grow" id="sDays"></div>
+      </div>
+      <div class="chips" style="margin:12px 0 8px" id="sKind">
+        <button class="chip on" data-k="text">一句话</button>
+        <button class="chip" data-k="clock">换成时钟</button>
+        <button class="chip" data-k="weather">换成天气</button>
+        <button class="chip" data-k="lulupet">换成噜噜</button>
+        <button class="chip" data-k="blank">换成黑屏</button>
+      </div>
+      <div id="sTextBox">
+        <input id="sText" placeholder="比如：早安 ☀ 今天也要开心">
+        <select id="sDur" style="margin-top:8px"><option value="300">显示 5 分钟</option><option value="1800" selected>30 分钟</option><option value="3600">1 小时</option></select>
+      </div>
+      <button class="primary" id="sAdd" style="margin-top:12px;width:100%">添加</button>
+    </div>
+  </section>
+
+  <!-- 设置 -->
+  <section data-tab="settings">
+    <h2>屏幕</h2>
+    <div class="panel">
+      <label class="small">亮度 <span id="brVal"></span></label>
+      <input type="range" id="br" min="0" max="100" step="5" style="padding:0">
+      <div class="row" style="margin-top:12px">
+        <button id="screenBtn" class="grow">关屏</button>
+      </div>
+      <div class="sub" id="quietInfo" style="margin-top:10px"></div>
+    </div>
+    <h2>其他</h2>
+    <div class="panel">
+      <label class="row" style="gap:8px"><input type="checkbox" id="luluInt" style="width:auto"> 噜噜的消息可以插播（不是常驻噜噜时）</label>
+      <div class="row" style="margin-top:12px">温度单位
+        <div class="chips"><button class="chip" data-unit="C">°C</button><button class="chip" data-unit="F">°F</button></div>
+      </div>
+      <div class="sub" id="devInfo" style="margin-top:12px"></div>
+      <button id="logout" style="margin-top:12px">换一个 token</button>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-go="send" class="active"><span class="ic">💬</span>发送</button>
+  <button data-go="draw"><span class="ic">🎨</span>画板</button>
+  <button data-go="base"><span class="ic">🖼</span>常驻</button>
+  <button data-go="sched"><span class="ic">⏰</span>定时</button>
+  <button data-go="settings"><span class="ic">⚙️</span>设置</button>
+</nav>
+
+<dialog id="tokenDlg">
+  <form method="dialog">
+    <div style="font-weight:600;margin-bottom:6px">输入 token</div>
+    <div class="sub" style="margin-bottom:10px">装 Hub 时生成的那串字符（在那台 Mac 的 ~/PixooHub/config.json 里）。只要输入一次。</div>
+    <input id="tokenIn" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="primary" value="ok">好</button></div>
+  </form>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* private mode */ } },
+};
+
+// token from ?token= (a shared link) is saved once and removed from the address bar
+(() => {
+  const u = new URL(location.href);
+  const t = u.searchParams.get("token");
+  if (t) { store.set("pixooToken", t); u.searchParams.delete("token"); history.replaceState(null, "", u.pathname + u.search + u.hash); }
+})();
+let token = store.get("pixooToken") || "";
+
+function toast(msg, ms = 2200) {
+  const el = $("#toast"); el.textContent = msg; el.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("show"), ms);
+}
+
+async function askToken() {
+  const d = $("#tokenDlg"); $("#tokenIn").value = token;
+  d.showModal();
+  await new Promise((r) => d.addEventListener("close", r, { once: true }));
+  token = $("#tokenIn").value.trim(); store.set("pixooToken", token);
+}
+
+async function api(path, { method = "GET", body } = {}) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(path, {
+      method, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (res.status === 401) { await askToken(); continue; }
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    return j;
+  }
+  throw new Error("token 不对");
+}
+
+// ---------- tabs ----------
+function go(tab) {
+  $$("nav button").forEach((b) => b.classList.toggle("active", b.dataset.go === tab));
+  $$("section[data-tab]").forEach((s) => s.classList.toggle("active", s.dataset.tab === tab));
+  store.set("pixooTab", tab);
+  if (tab === "sched") loadSchedules();
+}
+$$("nav button").forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
+go(store.get("pixooTab") || "send");
+
+// ---------- preview of the real screen ----------
+function drawFrame(canvas, b64) {
+  const bin = atob(b64), ctx = canvas.getContext("2d"), img = ctx.createImageData(64, 64);
+  for (let i = 0, j = 0; i < bin.length; i += 3, j += 4) {
+    img.data[j] = bin.charCodeAt(i); img.data[j + 1] = bin.charCodeAt(i + 1); img.data[j + 2] = bin.charCodeAt(i + 2); img.data[j + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+function animate(canvas, frames, frameMs) {
+  clearInterval(canvas._t);
+  if (!frames?.length) { canvas.getContext("2d").clearRect(0, 0, 64, 64); return; }
+  let i = 0; drawFrame(canvas, frames[0]);
+  if (frames.length > 1) canvas._t = setInterval(() => { i = (i + 1) % frames.length; drawFrame(canvas, frames[i]); }, Math.max(60, frameMs));
+}
+
+let status = null, nowKey = "";
+const fmtTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+async function refresh() {
+  try {
+    status = await api("/api/status");
+  } catch (e) { $("#nowLabel").textContent = "连不上 Hub"; $("#nowSub").textContent = e.message; return; }
+  const s = status;
+  $("#nowLabel").textContent = s.shown ? s.shown.label : "—";
+  const bits = [];
+  if (s.oneOff) bits.push(`插播到 ${fmtTime(s.oneOff.until)}，之后回到「${s.baseLabel}」`);
+  else bits.push("常驻画面");
+  if (s.quiet) bits.push("夜间模式");
+  if (s.deferred) bits.push(`${s.deferred} 条等早上再放`);
+  $("#nowSub").textContent = bits.join(" · ");
+  $("#clearBtn").classList.toggle("hidden", !s.oneOff);
+  $("#baseNow").textContent = s.baseLabel;
+  $$("[data-base]").forEach((b) => b.classList.toggle("on", b.dataset.base === s.base.type));
+  const key = `${s.shown?.label}|${s.shown?.at}`;
+  if (key !== nowKey) {
+    nowKey = key;
+    api("/api/now").then((n) => animate($("#now"), n.frames, n.frameMs)).catch(() => {});
+  }
+  // settings
+  if (document.activeElement !== $("#br")) { $("#br").value = s.settings.brightness; $("#brVal").textContent = s.settings.brightness; }
+  $("#screenBtn").textContent = s.settings.screenOn ? "关屏" : "开屏";
+  $("#luluInt").checked = !!s.settings.luluInterrupts;
+  $$("[data-unit]").forEach((b) => b.classList.toggle("on", b.dataset.unit === s.settings.unit));
+  const q = s.quietHours;
+  $("#quietInfo").textContent = q.enabled ? `每天 ${q.start}–${q.end} 自动${q.mode === "off" ? "关屏" : "调暗"}（时区 ${s.timezone}）` : "没有夜间模式";
+  const loc = s.settings.location;
+  $("#wxNow").textContent = loc?.name ? `${loc.name}` : "没设置";
+  const L = s.lulupet;
+  $("#luluHint").textContent = L.connected ? `噜噜桥接在线，最后一次 ${fmtTime(L.lastAt)}` : "噜噜桥接还没连上（没装或没开也没关系）";
+  $("#devInfo").innerHTML = `<span class="dot ${s.device && s.device.failures < s.device.requests ? "ok" : ""}"></span>已发 ${s.device?.animations ?? 0} 个画面 · 失败 ${s.device?.failures ?? 0} 次`;
+}
+setInterval(() => { if (!document.hidden) refresh(); }, 4000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+refresh();
+
+$("#clearBtn").onclick = async () => { await api("/api/clear", { method: "POST" }); refresh(); };
+
+async function send(item, dur) {
+  const persist = dur === "persist";
+  const r = await api("/api/show", { method: "POST", body: { item, persist, durationSec: persist ? undefined : Number(dur), source: "web" } });
+  toast(persist ? "设为常驻了" : r.deferred ? "现在是夜间模式，早上再放" : "发过去了 ✓");
+  setTimeout(refresh, 400);
+}
+
+// ---------- text ----------
+const COLORS = ["#ffecc8", "#ffffff", "#ff6f93", "#ffb347", "#ffe066", "#7ee08a", "#6fd3ff", "#b18cff"];
+let txtColor = store.get("pixooTxtColor") || COLORS[0];
+function swatches(el, colors, cur, on) {
+  el.innerHTML = "";
+  for (const c of colors) {
+    const b = document.createElement("button"); b.className = "swatch" + (c === cur ? " on" : ""); b.style.background = c; b.title = c;
+    b.onclick = () => { $$(".swatch", el).forEach((x) => x.classList.remove("on")); b.classList.add("on"); on(c); };
+    el.appendChild(b);
+  }
+}
+swatches($("#txtColors"), COLORS, txtColor, (c) => { txtColor = c; store.set("pixooTxtColor", c); });
+$("#txtSend").onclick = async () => {
+  const text = $("#txt").value.trim();
+  if (!text) return toast("先写点什么");
+  try { await send({ type: "text", text, color: txtColor }, $("#txtDur").value); $("#txt").value = ""; }
+  catch (e) { toast(e.message); }
+};
+
+// ---------- image ----------
+let imgData = null, imgFit = "cover";
+async function fileToB64(file) {
+  // big photos are shrunk in the browser first (the screen is 64 px anyway); GIFs are sent as they are
+  if (file.type !== "image/gif" && file.size > 1.5e6) {
+    const bmp = await createImageBitmap(file);
+    const s = Math.min(1, 512 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    return c.toDataURL("image/png").split(",")[1];
+  }
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+async function previewImage() {
+  if (!imgData) return;
+  try {
+    const r = await api("/api/preview", { method: "POST", body: { item: { type: "image", data: imgData, fit: imgFit } } });
+    animate($("#imgPrev"), r.frames, r.frameMs);
+    $("#imgRow").classList.remove("hidden"); $("#imgSend").classList.remove("hidden");
+  } catch (e) { toast(e.message); }
+}
+$("#img").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  if (f.size > 20e6) return toast("图片太大（最多 20 MB）");
+  toast("处理中…", 1200);
+  imgData = await fileToB64(f); previewImage();
+};
+$$("[data-fit]").forEach((b) => b.onclick = () => { imgFit = b.dataset.fit; $$("[data-fit]").forEach((x) => x.classList.toggle("on", x === b)); previewImage(); });
+$("#imgSend").onclick = async () => {
+  try { await send({ type: "image", data: imgData, fit: imgFit }, $("#imgDur").value); } catch (e) { toast(e.message); }
+};
+
+// ---------- drawing board ----------
+const board = $("#board"), bctx = board.getContext("2d");
+const PAL = ["#ffffff", "#ff4466", "#ff8c42", "#ffd93d", "#6bcB77", "#4d96ff", "#9b5de5", "#f15bb5", "#8d6e63", "#7f7f7f", "#000000"];
+let pen = PAL[1], tool = "pen", px = new Uint8Array(64 * 64 * 3), undoStack = [];
+try { const saved = store.get("pixooBoard"); if (saved) px = Uint8Array.from(atob(saved), (c) => c.charCodeAt(0)); } catch { /* ignore */ }
+const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+function paintBoard() {
+  const img = bctx.createImageData(64, 64);
+  for (let i = 0, j = 0; i < px.length; i += 3, j += 4) { img.data[j] = px[i]; img.data[j + 1] = px[i + 1]; img.data[j + 2] = px[i + 2]; img.data[j + 3] = 255; }
+  bctx.putImageData(img, 0, 0);
+}
+paintBoard();
+swatches($("#palette"), PAL, pen, (c) => { pen = c; if (tool === "erase") setTool("pen"); });
+function setTool(t) { tool = t; $("#toolPen").classList.toggle("on", t === "pen"); $("#toolFill").classList.toggle("on", t === "fill"); $("#toolErase").classList.toggle("on", t === "erase"); }
+$("#toolPen").onclick = () => setTool("pen"); $("#toolFill").onclick = () => setTool("fill"); $("#toolErase").onclick = () => setTool("erase");
+function setPx(x, y, c) { if (x < 0 || y < 0 || x > 63 || y > 63) return; const o = (y * 64 + x) * 3; px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; }
+function dab(x, y) {
+  const c = tool === "erase" ? [0, 0, 0] : hex(pen), s = Number($("#brush").value), h = Math.floor(s / 2);
+  for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) setPx(x - h + dx, y - h + dy, c);
+}
+function fill(x, y) {
+  const c = hex(pen), o0 = (y * 64 + x) * 3, t = [px[o0], px[o0 + 1], px[o0 + 2]];
+  if (t.every((v, i) => v === c[i])) return;
+  const st = [[x, y]];
+  while (st.length) {
+    const [a, b] = st.pop(); if (a < 0 || b < 0 || a > 63 || b > 63) continue;
+    const o = (b * 64 + a) * 3; if (px[o] !== t[0] || px[o + 1] !== t[1] || px[o + 2] !== t[2]) continue;
+    px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2];
+    st.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]);
+  }
+}
+function cell(e) { const r = board.getBoundingClientRect(); return [Math.floor(((e.clientX - r.left) / r.width) * 64), Math.floor(((e.clientY - r.top) / r.height) * 64)]; }
+let drawing = false, last = null;
+function line(a, b) {
+  let [x0, y0] = a; const [x1, y1] = b; const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let err = dx + dy;
+  for (;;) { dab(x0, y0); if (x0 === x1 && y0 === y1) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; } }
+}
+board.addEventListener("pointerdown", (e) => {
+  board.setPointerCapture(e.pointerId); undoStack.push(px.slice()); if (undoStack.length > 30) undoStack.shift();
+  const p = cell(e);
+  if (tool === "fill") { fill(...p); paintBoard(); changed(); return; }
+  drawing = true; last = p; dab(...p); paintBoard();
+});
+board.addEventListener("pointermove", (e) => { if (!drawing) return; const p = cell(e); line(last, p); last = p; paintBoard(); });
+const stop = () => { if (drawing) { drawing = false; changed(); } };
+board.addEventListener("pointerup", stop); board.addEventListener("pointercancel", stop);
+const b64px = () => { let s = ""; for (let i = 0; i < px.length; i += 0x8000) s += String.fromCharCode(...px.subarray(i, i + 0x8000)); return btoa(s); };
+let liveT = null;
+function changed() {
+  store.set("pixooBoard", b64px());
+  if ($("#live").checked) { clearTimeout(liveT); liveT = setTimeout(() => api("/api/show", { method: "POST", body: { item: { type: "pixels", data: b64px() }, durationSec: 600, source: "web-live" } }).then(() => setTimeout(refresh, 300)).catch((e) => toast(e.message)), 700); }
+}
+$("#undo").onclick = () => { if (undoStack.length) { px = undoStack.pop(); paintBoard(); changed(); } };
+$("#wipe").onclick = () => { undoStack.push(px.slice()); px = new Uint8Array(64 * 64 * 3); paintBoard(); changed(); };
+$("#live").onchange = () => { if ($("#live").checked) { toast("画的每一笔都会同步过去（保留 10 分钟）"); changed(); } };
+$("#drawSend").onclick = () => send({ type: "pixels", data: b64px() }, 300).catch((e) => toast(e.message));
+$("#drawBase").onclick = () => send({ type: "pixels", data: b64px() }, "persist").catch((e) => toast(e.message));
+
+// ---------- base screen ----------
+$$("[data-base]").forEach((b) => b.onclick = async () => {
+  const k = b.dataset.base;
+  $("#cdForm").classList.toggle("hidden", k !== "countdown");
+  $("#wxForm").classList.toggle("hidden", k !== "weather");
+  if (k === "countdown") return;
+  if (k === "weather" && !status?.settings?.location?.latitude) { toast("先选一个城市"); return; }
+  try { await api("/api/base", { method: "POST", body: { item: { type: k } } }); toast("换好了"); refresh(); } catch (e) { toast(e.message); }
+});
+$("#cdSave").onclick = async () => {
+  const d = $("#cdDate").value; if (!d) return toast("选一个日期");
+  try { await api("/api/base", { method: "POST", body: { item: { type: "countdown", target: d, label: $("#cdLabel").value.trim() } } }); toast("换好了"); $("#cdForm").classList.add("hidden"); refresh(); }
+  catch (e) { toast(e.message); }
+};
+$("#wxFind").onclick = async () => {
+  const q = $("#wxCity").value.trim(); if (!q) return;
+  try {
+    const { results } = await api(`/api/geocode?q=${encodeURIComponent(q)}`);
+    const box = $("#wxResults"); box.innerHTML = "";
+    if (!results.length) box.textContent = "没找到";
+    for (const r of results) {
+      const b = document.createElement("button"); b.className = "chip"; b.textContent = [r.name, r.admin, r.country].filter(Boolean).join(", ");
+      b.onclick = async () => {
+        await api("/api/settings", { method: "POST", body: { location: { name: r.name, latitude: r.latitude, longitude: r.longitude } } });
+        await api("/api/base", { method: "POST", body: { item: { type: "weather" } } });
+        toast(`天气：${r.name}`); box.innerHTML = ""; $("#wxForm").classList.add("hidden"); refresh();
+      };
+      box.appendChild(b);
+    }
+  } catch (e) { toast(e.message); }
+};
+
+// ---------- schedules ----------
+const DAYS = ["日", "一", "二", "三", "四", "五", "六"];
+let sDays = [], sKind = "text";
+(() => {
+  const box = $("#sDays");
+  DAYS.forEach((d, i) => { const b = document.createElement("button"); b.className = "chip"; b.textContent = d; b.onclick = () => { sDays = sDays.includes(i) ? sDays.filter((x) => x !== i) : [...sDays, i]; b.classList.toggle("on"); }; box.appendChild(b); });
+})();
+$$("[data-k]").forEach((b) => b.onclick = () => { sKind = b.dataset.k; $$("[data-k]").forEach((x) => x.classList.toggle("on", x === b)); $("#sTextBox").classList.toggle("hidden", sKind !== "text"); });
+async function loadSchedules() {
+  try {
+    const { schedules } = await api("/api/schedules");
+    const box = $("#schedList"); box.innerHTML = "";
+    if (!schedules.length) { box.innerHTML = '<div class="muted">还没有。比如每天 08:00 发「早安」。</div>'; return; }
+    for (const s of schedules.sort((a, b) => a.time.localeCompare(b.time))) {
+      const row = document.createElement("div"); row.className = "sched";
+      const what = s.action === "base" ? `换成${({ clock: "时钟", weather: "天气", lulupet: "噜噜", blank: "黑屏", countdown: "倒计时" })[s.item.type] ?? s.item.type}` : (s.item.text ? `「${s.item.text}」` : s.item.type);
+      const days = s.days.length ? "周" + s.days.map((d) => DAYS[d]).join("") : "每天";
+      row.innerHTML = `<div class="t"></div><div class="grow"><div class="w"></div><div class="sub"></div></div><button aria-label="删除">删除</button>`;
+      $(".t", row).textContent = s.time; $(".w", row).textContent = what; $(".sub", row).textContent = days + (s.durationSec && s.action === "show" ? ` · ${Math.round(s.durationSec / 60)} 分钟` : "");
+      $("button", row).onclick = async () => { await api(`/api/schedules/${s.id}`, { method: "DELETE" }); loadSchedules(); };
+      box.appendChild(row);
+    }
+  } catch (e) { toast(e.message); }
+}
+$("#sAdd").onclick = async () => {
+  const time = $("#sTime").value;
+  const body = sKind === "text"
+    ? { time, days: sDays, action: "show", item: { type: "text", text: $("#sText").value.trim(), color: txtColor }, durationSec: Number($("#sDur").value) }
+    : { time, days: sDays, action: "base", item: { type: sKind } };
+  if (sKind === "text" && !body.item.text) return toast("写一句话");
+  try { await api("/api/schedules", { method: "POST", body }); toast("加好了"); $("#sText").value = ""; loadSchedules(); } catch (e) { toast(e.message); }
+};
+
+// ---------- settings ----------
+let brT;
+$("#br").oninput = () => { $("#brVal").textContent = $("#br").value; clearTimeout(brT); brT = setTimeout(() => api("/api/settings", { method: "POST", body: { brightness: Number($("#br").value) } }).catch((e) => toast(e.message)), 250); };
+$("#screenBtn").onclick = async () => { await api("/api/settings", { method: "POST", body: { screenOn: !status?.settings?.screenOn } }); refresh(); };
+$("#luluInt").onchange = () => api("/api/settings", { method: "POST", body: { luluInterrupts: $("#luluInt").checked } });
+$$("[data-unit]").forEach((b) => b.onclick = async () => { await api("/api/settings", { method: "POST", body: { unit: b.dataset.unit } }); refresh(); });
+$("#logout").onclick = async () => { await askToken(); refresh(); };
+</script>
+</body>
+</html>

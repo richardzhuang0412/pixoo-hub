@@ -1,0 +1,27 @@
+{
+  "name": "pixoo-hub",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A small always-on hub for a Divoom Pixoo-64: phone web page, HTTP API, CLI and a Claude (MCP) server; LuluPet plugs in as one source.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "bin": {
+    "pixoo-hub": "bin/pixoo-hub.js",
+    "pixoo": "bin/pixoo.js",
+    "pixoo-mcp": "bin/pixoo-mcp.js"
+  },
+  "scripts": {
+    "start": "node bin/pixoo-hub.js",
+    "dev": "node bin/pixoo-hub.js --mock",
+    "fetch-font": "node scripts/fetch-font.js",
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "qrcode": "1.5.4",
+    "sharp": "0.35.5"
+  }
+}

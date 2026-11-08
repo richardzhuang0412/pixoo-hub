@@ -1,0 +1,9 @@
+{
+  "name": "Pixoo 小屏",
+  "short_name": "Pixoo",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#16141c",
+  "theme_color": "#16141c",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
