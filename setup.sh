@@ -46,7 +46,7 @@ if [ "$MODE" = "--uninstall" ]; then
   unload "$HUB_PLIST"; unload "$LULU_PLIST"
   sudo rm -f /usr/local/bin/pixoo
   sudo pmset -a disablesleep 0
-  ok "服务删掉了，睡眠设置恢复了。配置和程序还在 $ROOT，不要了可以拖进废纸篓"
+  ok "服务删掉了，睡眠设置恢复了。配置和程序还在 ${ROOT}，不要了可以拖进废纸篓"
   exit 0
 fi
 
@@ -55,7 +55,7 @@ mkdir -p "$ROOT/logs" "$ROOT/data"
 # ---------- 1. Node.js ----------
 if [ ! -x "$NODE_DIR/bin/node" ]; then
   arch="$(uname -m)"; [ "$arch" = "x86_64" ] && arch="x64"
-  say "下载 Node.js 22（$arch）"
+  say "下载 Node.js 22（${arch}）"
   base="https://nodejs.org/dist/latest-v22.x"
   line="$(curl -fsSL "$base/SHASUMS256.txt" | grep "darwin-$arch.tar.gz$")" || die "找不到 Node 下载地址，检查网络"
   sha="${line%% *}"; file="${line##* }"
@@ -90,7 +90,7 @@ else
   N="$(printf '%s' "$LIST" | grep -c . || true)"
   IP=""
   if [ "$N" = "1" ]; then
-    IP="$(printf '%s' "$LIST" | cut -f2)"; ok "找到了：$(printf '%s' "$LIST" | cut -f1)（$IP）"
+    IP="$(printf '%s' "$LIST" | cut -f2)"; ok "找到了：$(printf '%s' "$LIST" | cut -f1)（${IP}）"
   elif [ "$N" -gt 1 ] 2>/dev/null; then
     echo "找到好几个 Divoom 设备："; printf '%s\n' "$LIST" | awk -F'\t' '{printf "  %d) %s  %s\n", NR, $1, $2}'
     pick="$(ask "选哪个？输入数字 [1]: ")"; pick="${pick:-1}"
@@ -105,7 +105,7 @@ else
     if curl -s -m 5 -X POST "http://$IP/post" -d '{"Command":"Channel/GetAllConf"}' 2>/dev/null | grep -q error_code; then
       ok "连上 Pixoo 了"; PIXOO_OK=1; break
     fi
-    warn "连不上 $IP。如果弹出「允许查找本地网络设备」，点允许。"
+    warn "连不上 ${IP}。如果弹出「允许查找本地网络设备」，点允许。"
     again="$(ask "重新输入 IP（直接回车 = 再试一次，输入 skip = 先跳过）: ")" || break
     [ "$again" = "skip" ] && break
     [ -n "$again" ] && IP="$again"
@@ -139,7 +139,7 @@ else
     writeFileSync(e.CONFIG, JSON.stringify(c, null, 2) + "\n", { mode: 0o600 });
   '
   chmod 600 "$CONFIG"
-  ok "配置写在 $CONFIG（只有你能读）"
+  ok "配置写在 ${CONFIG}（只有你能读）"
 fi
 TOKEN="$(node -e 'process.stdout.write(require(process.argv[1]).token)' "$CONFIG")"
 
